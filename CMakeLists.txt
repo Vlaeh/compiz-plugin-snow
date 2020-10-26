@@ -1,5 +1,6 @@
+project (compiz C CXX)
+cmake_minimum_required (VERSION 3.10.0)
+cmake_policy (SET CMP0077 NEW)
 find_package (Compiz REQUIRED)
-
 include (CompizPlugin)
-
 compiz_plugin (snow PLUGINDEPS opengl composite)

@@ -78,6 +78,18 @@ mmRand (int   min,
     return ((float) getRand(min, max)) / divisor;
 };
 
+SnowTexture::SnowTexture():
+    dList(0)
+{
+}
+
+SnowTexture::~SnowTexture()
+{
+    tex.clear();
+    if (dList)
+        glDeleteLists(dList, 1);
+}
+
 void
 SnowScreen::initiateSnowFlake (SnowFlake  *sf)
 {
@@ -154,9 +166,9 @@ SnowScreen::stepSnowPositions ()
 {
     if (!active)
         return TRUE;
-    SnowFlake  *snowFlake = allSnowFlakes;
+
     for (int i = 0; i < numFlakes; i++)
-        snowThink(snowFlake++);
+        snowThink(&allSnowFlakes[i]);
 
     switch(snowDisplayMode) 
     {
@@ -225,9 +237,9 @@ SnowScreen::beginRendering (const CompWindow *win, const CompRegion &region)
             glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glEnable (GL_BLEND);
     }
-    
+
     glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-    
+
     if (displayListNeedsUpdate)
     {
         setupDisplayList ();
@@ -246,9 +258,9 @@ SnowScreen::beginRendering (const CompWindow *win, const CompRegion &region)
             GLTexture *tex = snowTex[j].tex[0];
             tex->enable (GLTexture::Good);
 
-            SnowFlake *snowFlake = allSnowFlakes;
-            for (int i = 0; i < numFlakes; i++, snowFlake++)
+            for (int i = 0; i < numFlakes; i++)
             {
+                SnowFlake *snowFlake = &allSnowFlakes[i];
                 if (snowFlake->tex != &snowTex[j])
                     continue;
 
@@ -277,13 +289,13 @@ SnowScreen::beginRendering (const CompWindow *win, const CompRegion &region)
     }
     else
     {
-        SnowFlake *snowFlake = allSnowFlakes;
-
-        for (int i = 0; i < numFlakes; i++, snowFlake++)
+        for (int i = 0; i < numFlakes; i++)
         {
+            SnowFlake *snowFlake = &allSnowFlakes[i];
+
             if ((win != NULL) && (! win->borderRect().contains(snowFlake->pos)))
                 continue;
-            
+
             if (! region.contains(snowFlake->pos))
                 continue;
 
@@ -319,7 +331,7 @@ bool SnowWindow::glDraw (const GLMatrix           &transform,
         if (! (Window->type() & CompWindowTypeDesktopMask))
             break;
     case SnowOptions::SnowDisplayModeOverWindows:
-        if (sScreen->active 
+        if (sScreen->active
             && (sScreen->isWindowDrawable(Window))
             // try to keep performance when transparant cube is used
             && ((mask == 0) || (mask & PAINT_WINDOW_ON_TRANSFORMED_SCREEN_MASK))
@@ -365,12 +377,12 @@ SnowScreen::isWindowDrawable(const CompWindow *w)
         return false;
     if ((!w->alive()) || (!w->isMapped()) || (!w->isViewable()))
         return false;
-    if (! (type & CompWindowTypeDesktopMask)) 
+    if (! (type & CompWindowTypeDesktopMask))
     {
         if (isForcedWindow(snowForcedMatch, w))
             return true;
         if ((! snowDisplayOverFocusedWindows)
-            && w->focused()) 
+            && w->focused())
             return false;
         if ((! snowDisplayOverWindowsVieableOnAllWorkspaces)
             && w->onAllViewports ())
@@ -426,27 +438,22 @@ SnowScreen::setSnowflakeTexture (SnowFlake  *sf)
 void
 SnowScreen::clearSnowTextures ()
 {
-    if (!snowTex)
+    if (snowTex == NULL)
         return;
 
-    for (int i = 0; i < snowTexturesLoaded; i++) 
-    {
-        snowTex[i].tex.clear();
-        if (snowTex[i].dList)
-            glDeleteLists(snowTex[i].dList, 1);
-    }
-    free (snowTex);
+    delete [] snowTex;
+    snowTex = NULL;
     snowTexturesLoaded = 0;
 }
 
 void
 SnowScreen::updateSnowTextures ()
 {
-    int       i, count = 0;
-    SnowFlake *snowFlake;
+    int i, count = 0;
 
     clearSnowTextures();
-    snowTex = (SnowTexture *) calloc (1, sizeof (SnowTexture) * snowTexNFiles);
+    if (snowTexNFiles > 0)
+        snowTex = new SnowTexture[snowTexNFiles];
 
     for (i = 0; i < snowTexNFiles; i++)
     {
@@ -487,12 +494,9 @@ SnowScreen::updateSnowTextures ()
     }
 
     snowTexturesLoaded = count;
-    if (count < snowTexNFiles)
-        snowTex = (SnowTexture *) realloc (snowTex, sizeof (SnowTexture) * (count+1));
 
-    snowFlake = allSnowFlakes;
     for (i = 0; i < numFlakes; i++)
-        setSnowflakeTexture (snowFlake++);
+        setSnowflakeTexture (&allSnowFlakes[i]);
 }
 
 bool
@@ -555,7 +559,7 @@ SnowScreen::optionChanged (CompOption            *options,
     {
         CompOption::Value::Vector texOpt = optionGetSnowTextures ();
         snowTexNFiles = texOpt.size();
-        snowTexFiles = new CompString[snowTexNFiles+1];
+        snowTexFiles = snowTexNFiles > 0 ? new CompString[snowTexNFiles] : NULL;
         for (int i = 0; i < snowTexNFiles; i++) 
             snowTexFiles[i] = texOpt.at(i).s();
 
@@ -567,13 +571,13 @@ SnowScreen::optionChanged (CompOption            *options,
     {
         numFlakes = optionGetNumSnowflakes();
         int        i;
-        SnowFlake  *snowFlake;
 
-        allSnowFlakes = (SnowFlake *) realloc (allSnowFlakes, (numFlakes+1) * sizeof (SnowFlake));
-        snowFlake = allSnowFlakes;
+        delete [] allSnowFlakes;
+        allSnowFlakes = numFlakes > 0 ? new SnowFlake[numFlakes] : NULL;
 
         for (i = 0; i < numFlakes; i++)
         {
+            SnowFlake  *snowFlake = &allSnowFlakes[i];
             initiateSnowFlake (snowFlake);    
             setSnowflakeTexture (snowFlake);
             snowFlake++;
@@ -692,12 +696,14 @@ SnowScreen::SnowScreen (CompScreen *screen) :
     snowDisplayOverFocusedWindows (optionGetSnowDisplayOverFocusedWindows()),
     snowDisplayOverTopWindows (optionGetSnowDisplayOverTopWindows()),
     snowDisplayOverWindowsVieableOnAllWorkspaces (optionGetSnowDisplayOverWindowsVieableOnAllWorkspaces()),
-	snowForcedMatch (optionGetSnowForcedOverWindow()),
+    snowForcedMatch (optionGetSnowForcedOverWindow()),
     snowRotation (optionGetSnowRotation ()),
     useBlending (optionGetUseBlending ()),
     useTextures (optionGetUseTextures ()),
     active (optionGetSnowEnabled ()),
     snowTexNFiles (0),
+    snowTexturesLoaded (0),
+    snowTex(NULL),
     snowColorForced (optionGetSnowColorForced ()),
     snowColorRed (0),
     snowColorGreen (0),
@@ -709,7 +715,7 @@ SnowScreen::SnowScreen (CompScreen *screen) :
 
     CompOption::Value::Vector texOpt = optionGetSnowTextures ();
     snowTexNFiles = texOpt.size();
-    snowTexFiles =  new CompString[snowTexNFiles+1];
+    snowTexFiles =  snowTexNFiles > 0 ? new CompString[snowTexNFiles] : NULL;
     //(CompString *) calloc(1, sizeof(CompString) * (snowTexNFiles+1));
     for (int i = 0; i < snowTexNFiles; i++)  {
         texOpt.at(i);
@@ -717,20 +723,15 @@ SnowScreen::SnowScreen (CompScreen *screen) :
     }
 
     displayList = 0;
-    snowTexturesLoaded = 0;
-    snowTex = NULL;
     displayListNeedsUpdate = false;
 
-    SnowFlake  *snowFlake;
-    allSnowFlakes = snowFlake = (SnowFlake *) malloc ((numFlakes+1) * sizeof (SnowFlake));
-    if (snowFlake)
+    allSnowFlakes = numFlakes > 0 ? new SnowFlake[numFlakes] : NULL;
+    for (int i = 0; i < numFlakes; i++)
     {
-        for (int i = 0; i < numFlakes; i++)
-        {
-            initiateSnowFlake (snowFlake);
-            setSnowflakeTexture (snowFlake);
-            snowFlake++;
-        }
+        SnowFlake  *snowFlake = &allSnowFlakes[i];
+        initiateSnowFlake (snowFlake);
+        setSnowflakeTexture (snowFlake);
+        snowFlake++;
     }
     updateSnowTextures ();
     setupDisplayList ();
@@ -771,7 +772,7 @@ SnowScreen::SnowScreen (CompScreen *screen) :
 SnowScreen::~SnowScreen ()
 {
     clearSnowTextures();
-    free(allSnowFlakes);
+    delete [] allSnowFlakes;
     delete [] snowTexFiles;
     if (displayList)
         glDeleteLists (displayList, 1);

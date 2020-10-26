@@ -75,7 +75,7 @@
 		  </desc>
 		</option>
 		<option name="snow_display_over_focused_windows" type="bool">
-		  <_short>Snow Over Focused window</_short>
+		  <_short>Snow Over Focused Window</_short>
 		  <_long>Display snow over focused windows (when display mode is 'Over Windows')</_long>
 		  <default>false</default>
 		</option>
@@ -90,7 +90,7 @@
 		  <default>false</default>
 		</option>
 		<option name="snow_forced_over_window" type="match">
-		  <_short>Snow Always Displayed</_short>
+		  <_short>Snow Always Displayed Over </_short>
 		  <_long>Always display snow over matching windows</_long>
 		  <default>ititle=.*screen.*saver.*</default>
 		</option>
